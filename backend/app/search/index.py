@@ -1,7 +1,6 @@
 from typing import Any
 
-from elasticsearch import AsyncElasticsearch
-
+from elasticsearch import AsyncElasticsearch, NotFoundError
 from app.core.exceptions import SearchUnavailableError
 
 
@@ -19,7 +18,11 @@ BulkRefresh = bool | str
 
 async def index_exists(client: AsyncElasticsearch, index: str) -> bool:
     """Проверяет существование индекса"""
-    return bool(await client.indices.exists(index=index))
+    try:
+        await client.indices.get(index=index)
+        return True
+    except NotFoundError:
+        return False
 
 
 async def create_index(client: AsyncElasticsearch, index: str) -> None:
@@ -72,7 +75,10 @@ async def refresh_index(client: AsyncElasticsearch, index: str) -> None:
 
 async def delete_document(client: AsyncElasticsearch, index: str, doc_id: int) -> None:
     """Удаляет документ из индекса игнорируя отсутствие"""
-    await client.delete(index=index, id=str(doc_id), refresh="wait_for", ignore_status=[404])
+    try:
+        await client.delete(index=index, id=str(doc_id), refresh="wait_for")
+    except NotFoundError:
+        pass
 
 
 async def search_documents(

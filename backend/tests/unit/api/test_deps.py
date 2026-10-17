@@ -1,5 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from elasticsearch import AsyncElasticsearch
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -63,17 +64,38 @@ def test_get_cache_returns_from_state() -> None:
     assert get_cache(request) is request.app.state.cache
 
 
-async def test_get_session_yields_and_closes() -> None:
-    """Проверяет что get_session открывает и закрывает сессию"""
+def _session_with_context() -> tuple[MagicMock, MagicMock]:
+    """Создаёт мок сессии и контекстного менеджера фабрики"""
     session = MagicMock(spec=AsyncSession)
+    session.commit = AsyncMock()
+    session.rollback = AsyncMock()
     cm = MagicMock()
     cm.__aenter__ = AsyncMock(return_value=session)
     cm.__aexit__ = AsyncMock(return_value=None)
     factory = MagicMock(spec=async_sessionmaker)
     factory.return_value = cm
+    return session, factory
+
+
+async def test_get_session_commits_on_success() -> None:
+    """Проверяет что get_session коммитит при успехе"""
+    session, factory = _session_with_context()
     async for yielded in get_session(factory):
         assert yielded is session
-    cm.__aexit__.assert_awaited_once()
+    factory.return_value.__aexit__.assert_awaited_once()
+    session.commit.assert_awaited_once()
+    session.rollback.assert_not_awaited()
+
+
+async def test_get_session_rollbacks_on_exception() -> None:
+    """Проверяет что get_session откатывает при ошибке"""
+    session, factory = _session_with_context()
+    gen = get_session(factory)
+    await anext(gen)
+    with pytest.raises(RuntimeError):
+        await gen.athrow(RuntimeError("boom"))
+    session.rollback.assert_awaited_once()
+    session.commit.assert_not_awaited()
 
 
 def test_get_document_repository_returns_repository() -> None:

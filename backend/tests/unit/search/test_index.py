@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from elasticsearch import NotFoundError
 
 from app.core.exceptions import SearchUnavailableError
 from app.search.index import (
@@ -20,6 +21,7 @@ def _client() -> MagicMock:
     """Создаёт мок ES-клиента с async-методами"""
     client = MagicMock()
     client.indices = MagicMock()
+    client.indices.get = AsyncMock()
     client.indices.exists = AsyncMock()
     client.indices.create = AsyncMock()
     client.indices.delete = AsyncMock()
@@ -29,6 +31,11 @@ def _client() -> MagicMock:
     client.delete = AsyncMock()
     client.search = AsyncMock()
     return client
+
+
+def _not_found() -> NotFoundError:
+    """Создаёт NotFoundError для моков"""
+    return NotFoundError("not found", {}, {})
 
 
 def test_mapping_structure() -> None:
@@ -42,22 +49,22 @@ def test_mapping_structure() -> None:
 async def test_index_exists_true() -> None:
     """Проверяет что index_exists возвращает True"""
     client = _client()
-    client.indices.exists.return_value = True
+    client.indices.get.return_value = {"documents": {}}
     assert await index_exists(client, "documents") is True
-    client.indices.exists.assert_awaited_once_with(index="documents")
+    client.indices.get.assert_awaited_once_with(index="documents")
 
 
 async def test_index_exists_false() -> None:
-    """Проверяет что index_exists возвращает False"""
+    """Проверяет что index_exists возвращает False при NotFoundError"""
     client = _client()
-    client.indices.exists.return_value = False
+    client.indices.get.side_effect = _not_found()
     assert await index_exists(client, "documents") is False
 
 
 async def test_create_index_when_missing() -> None:
     """Проверяет создание индекса если его нет"""
     client = _client()
-    client.indices.exists.return_value = False
+    client.indices.get.side_effect = _not_found()
     await create_index(client, "documents")
     client.indices.create.assert_awaited_once_with(
         index="documents",
@@ -68,7 +75,7 @@ async def test_create_index_when_missing() -> None:
 async def test_create_index_when_exists_skips() -> None:
     """Проверяет что индекс не пересоздаётся если уже есть"""
     client = _client()
-    client.indices.exists.return_value = True
+    client.indices.get.return_value = {"documents": {}}
     await create_index(client, "documents")
     client.indices.create.assert_not_awaited()
 
@@ -76,7 +83,7 @@ async def test_create_index_when_exists_skips() -> None:
 async def test_delete_index_when_exists() -> None:
     """Проверяет удаление существующего индекса"""
     client = _client()
-    client.indices.exists.return_value = True
+    client.indices.get.return_value = {"documents": {}}
     await delete_index(client, "documents")
     client.indices.delete.assert_awaited_once_with(index="documents")
 
@@ -84,7 +91,7 @@ async def test_delete_index_when_exists() -> None:
 async def test_delete_index_when_missing_skips() -> None:
     """Проверяет что удаление отсутствующего индекса не вызывает ES"""
     client = _client()
-    client.indices.exists.return_value = False
+    client.indices.get.side_effect = _not_found()
     await delete_index(client, "documents")
     client.indices.delete.assert_not_awaited()
 
@@ -160,16 +167,23 @@ async def test_refresh_index_calls_es() -> None:
     client.indices.refresh.assert_awaited_once_with(index="documents")
 
 
-async def test_delete_document_ignores_404() -> None:
-    """Проверяет что удаление вызывает ES с ignore_status 404"""
+async def test_delete_document_calls_es() -> None:
+    """Проверяет что delete_document вызывает ES с refresh"""
     client = _client()
     await delete_document(client, "documents", 10)
     client.delete.assert_awaited_once_with(
         index="documents",
         id="10",
         refresh="wait_for",
-        ignore_status=[404],
     )
+
+
+async def test_delete_document_ignores_not_found() -> None:
+    """Проверяет что отсутствие документа в ES не ломает удаление"""
+    client = _client()
+    client.delete.side_effect = _not_found()
+    await delete_document(client, "documents", 10)
+    client.delete.assert_awaited_once()
 
 
 async def test_search_documents_returns_ids() -> None:

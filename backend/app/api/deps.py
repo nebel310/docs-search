@@ -40,9 +40,15 @@ def get_cache(request: Request) -> DocumentCacheProtocol | None:
 async def get_session(
     factory: Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)],
 ) -> AsyncIterator[AsyncSession]:
-    """Открывает async-сессию и закрывает её после запроса"""
+    """Открывает сессию, коммитит при успехе и откатывает при ошибке"""
     async with factory() as session:
-        yield session
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
+        else:
+            await session.commit()
 
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
