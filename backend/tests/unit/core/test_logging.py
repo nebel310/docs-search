@@ -1,12 +1,14 @@
-import pytest
 import logging
+from collections.abc import Iterator
+
+import pytest
 import structlog
 
 from app.core.logging import configure_logging, get_logger
 
 
 @pytest.fixture(autouse=True)
-def _reset_structlog() -> None:
+def _reset_structlog() -> Iterator[None]:
     """Сбрасывает structlog и stdlib logging перед каждым тестом"""
     structlog.reset_defaults()
     for handler in logging.root.handlers[:]:
