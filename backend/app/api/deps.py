@@ -3,8 +3,10 @@ from typing import Annotated
 
 from elasticsearch import AsyncElasticsearch
 from fastapi import Depends, Request
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.cache.document_cache import DocumentCache
 from app.core.config import Settings, get_settings
 from app.repositories.es.document import SearchRepository
 from app.repositories.pg.document import DocumentRepository
@@ -18,6 +20,11 @@ SettingsDep = Annotated[Settings, Depends(get_settings)]
 def get_es_client(request: Request) -> AsyncElasticsearch:
     """Возвращает ES-клиент из состояния приложения"""
     return request.app.state.es_client
+
+
+def get_redis(request: Request) -> Redis | None:
+    """Возвращает Redis-клиент из состояния приложения"""
+    return getattr(request.app.state, "redis", None)
 
 
 def get_session_factory(request: Request) -> async_sessionmaker[AsyncSession]:
@@ -40,6 +47,7 @@ async def get_session(
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 EsClientDep = Annotated[AsyncElasticsearch, Depends(get_es_client)]
+RedisDep = Annotated[Redis | None, Depends(get_redis)]
 CacheDep = Annotated[DocumentCacheProtocol | None, Depends(get_cache)]
 
 

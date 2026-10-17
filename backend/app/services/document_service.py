@@ -1,19 +1,28 @@
-from typing import Any, Protocol
+from typing import Protocol
 
 from app.core.exceptions import DocumentNotFoundError
 from app.core.logging import get_logger
 from app.repositories.es.document import SearchRepository
 from app.repositories.pg.document import DocumentRepository
+from app.schemas.document import DocumentOut
 
 
 logger = get_logger(__name__)
 
 
 class DocumentCacheProtocol(Protocol):
-    """Протокол кэша документа для инвалидации"""
+    """Протокол кэша документа"""
+
+    async def get(self, doc_id: int) -> DocumentOut | None:
+        """Возвращает документ из кэша или None"""
+        ...
+
+    async def set(self, doc_id: int, document: DocumentOut) -> None:
+        """Кладёт документ в кэш"""
+        ...
 
     async def invalidate(self, doc_id: int) -> None:
-        """Удаляет документ из кэша по id"""
+        """Удаляет документ из кэша"""
         ...
 
 
@@ -30,6 +39,22 @@ class DocumentService:
         self._document_repository = document_repository
         self._search_repository = search_repository
         self._cache = cache
+
+    async def get(self, doc_id: int) -> DocumentOut:
+        """Возвращает документ по id, используя кэш"""
+        if self._cache is not None:
+            cached = await self._cache.get(doc_id)
+            if cached is not None:
+                return cached
+
+        document = await self._document_repository.get_by_id(doc_id)
+        if document is None:
+            raise DocumentNotFoundError(f"Document {doc_id} not found")
+
+        result = DocumentOut.model_validate(document)
+        if self._cache is not None:
+            await self._cache.set(doc_id, result)
+        return result
 
     async def delete(self, doc_id: int) -> None:
         """Удаляет документ из PG, кэша и ES"""
