@@ -8,6 +8,7 @@ dependencies = [
     "elasticsearch[async]>=9.5.1",
     "fastapi>=0.143.3",
     "pydantic-settings>=2.16.0",
+    "pytest>=9.1.1",
     "redis>=8.1.0",
     "sqlalchemy[asyncio]>=2.1.5",
     "structlog>=26.1.0",

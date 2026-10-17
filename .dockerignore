@@ -10,3 +10,4 @@ tests
 docs.json
 README.md
 AGENTS.md
+*.vscode/
