@@ -11,6 +11,7 @@ from app.search.index import (
     delete_index,
     index_document,
     index_exists,
+    refresh_index,
     search_documents,
 )
 
@@ -22,6 +23,7 @@ def _client() -> MagicMock:
     client.indices.exists = AsyncMock()
     client.indices.create = AsyncMock()
     client.indices.delete = AsyncMock()
+    client.indices.refresh = AsyncMock()
     client.index = AsyncMock()
     client.bulk = AsyncMock()
     client.delete = AsyncMock()
@@ -115,6 +117,22 @@ async def test_bulk_index_documents_success() -> None:
     client.bulk.assert_awaited_once()
 
 
+async def test_bulk_index_documents_default_refresh() -> None:
+    """Проверяет что по умолчанию используется wait_for"""
+    client = _client()
+    client.bulk.return_value = {"errors": False}
+    await bulk_index_documents(client, "documents", [{"id": 1, "text": "x"}])
+    assert client.bulk.call_args.kwargs["refresh"] == "wait_for"
+
+
+async def test_bulk_index_documents_custom_refresh_false() -> None:
+    """Проверяет что refresh=False прокидывается в ES"""
+    client = _client()
+    client.bulk.return_value = {"errors": False}
+    await bulk_index_documents(client, "documents", [{"id": 1, "text": "x"}], refresh=False)
+    assert client.bulk.call_args.kwargs["refresh"] is False
+
+
 async def test_bulk_index_documents_operations_format() -> None:
     """Проверяет формат операций для bulk"""
     client = _client()
@@ -133,6 +151,13 @@ async def test_bulk_index_documents_errors_raises() -> None:
     client.bulk.return_value = {"errors": True}
     with pytest.raises(SearchUnavailableError):
         await bulk_index_documents(client, "documents", [{"id": 1, "text": "x"}])
+
+
+async def test_refresh_index_calls_es() -> None:
+    """Проверяет что refresh_index вызывает indices.refresh"""
+    client = _client()
+    await refresh_index(client, "documents")
+    client.indices.refresh.assert_awaited_once_with(index="documents")
 
 
 async def test_delete_document_ignores_404() -> None:

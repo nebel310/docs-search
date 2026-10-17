@@ -1,4 +1,4 @@
-.PHONY: up down logs migrate import test test-unit test-integration test-e2e load docs venv install
+.PHONY: up down logs migrate init-es import test test-unit test-integration test-e2e load docs venv install
 
 up:
 	docker compose up -d --build
@@ -17,6 +17,9 @@ install:
 
 migrate:
 	docker compose run --rm api alembic upgrade head
+
+init-es:
+	docker compose --profile cli run --rm init-es
 
 import:
 	docker compose --profile cli run --rm import

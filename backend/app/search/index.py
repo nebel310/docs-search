@@ -14,6 +14,8 @@ DOCUMENTS_INDEX_MAPPING: dict[str, Any] = {
     }
 }
 
+BulkRefresh = bool | str
+
 
 async def index_exists(client: AsyncElasticsearch, index: str) -> bool:
     """Проверяет существование индекса"""
@@ -48,6 +50,7 @@ async def bulk_index_documents(
     client: AsyncElasticsearch,
     index: str,
     documents: list[dict[str, Any]],
+    refresh: BulkRefresh = "wait_for",
 ) -> int:
     """Индексирует пачку документов через bulk и возвращает их количество"""
     if not documents:
@@ -56,10 +59,15 @@ async def bulk_index_documents(
     for document in documents:
         operations.append({"index": {"_index": index, "_id": str(document["id"])}})
         operations.append({"id": document["id"], "text": document["text"]})
-    response = await client.bulk(operations=operations, refresh="wait_for")
+    response = await client.bulk(operations=operations, refresh=refresh)
     if response.get("errors"):
         raise SearchUnavailableError("Bulk indexing failed")
     return len(documents)
+
+
+async def refresh_index(client: AsyncElasticsearch, index: str) -> None:
+    """Принудительно обновляет индекс"""
+    await client.indices.refresh(index=index)
 
 
 async def delete_document(client: AsyncElasticsearch, index: str, doc_id: int) -> None:
