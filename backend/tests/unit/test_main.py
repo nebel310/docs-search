@@ -8,7 +8,9 @@ from app.main import create_app, lifespan
 from app.rate_limit.middleware import RateLimitMiddleware
 
 
-def _patch_resources(monkeypatch: pytest.MonkeyPatch) -> tuple[MagicMock, MagicMock, MagicMock]:
+def _patch_resources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[MagicMock, MagicMock, MagicMock]:
     """Подменяет фабрики ресурсов и возвращает моки"""
     engine = MagicMock()
     engine.dispose = AsyncMock()
@@ -55,7 +57,7 @@ async def test_lifespan_closes_on_exception(monkeypatch: pytest.MonkeyPatch) -> 
 def test_create_app_registers_routes() -> None:
     """Проверяет что create_app регистрирует все роуты"""
     application = create_app()
-    paths = {route.path for route in application.routes}
+    paths = set(application.openapi()["paths"].keys())
     assert "/health" in paths
     assert "/ready" in paths
     assert "/search" in paths

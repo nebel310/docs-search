@@ -2,8 +2,10 @@ from collections.abc import Iterator
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from httpx import ASGITransport, AsyncClient
+from starlette.responses import JSONResponse
+from starlette.routing import Route
 
 from app.core.config import Settings
 from app.rate_limit.middleware import SKIP_PATHS, RateLimitMiddleware
@@ -28,6 +30,11 @@ def _app(redis: MagicMock | None, enabled: bool = True) -> FastAPI:
         return {"ok": "yes"}
 
     return application
+
+
+async def _stub_endpoint(_: Request) -> JSONResponse:
+    """Заглушка эндпоинта для skip-путей"""
+    return JSONResponse({"ok": "yes"})
 
 
 @pytest.fixture
@@ -96,11 +103,7 @@ async def test_skip_paths_do_not_evaluate(redis_deny: MagicMock) -> None:
     application = _app(redis=redis_deny)
     for path in SKIP_PATHS:
         application.router.routes.append(
-            type(application.router.routes[0])(
-                path=path,
-                endpoint=lambda: {"ok": "yes"},
-                methods=["GET"],
-            )
+            Route(path=path, endpoint=_stub_endpoint, methods=["GET"])
         )
     async with AsyncClient(transport=ASGITransport(app=application), base_url="http://t") as http:
         for path in SKIP_PATHS:

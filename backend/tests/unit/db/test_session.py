@@ -1,3 +1,6 @@
+from unittest.mock import MagicMock
+
+import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.config import Settings
@@ -28,10 +31,18 @@ def test_create_engine_pre_ping_enabled() -> None:
     assert engine.pool._pre_ping is True
 
 
-def test_create_engine_disables_statement_cache() -> None:
+def test_create_engine_disables_statement_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     """Проверяет что statement_cache_size=0 для PgBouncer"""
-    engine = create_engine(Settings(_env_file=None))
-    assert engine.sync_engine.dialect.statement_cache_size == 0
+    captured: dict = {}
+
+    def fake_create_async_engine(*args: object, **kwargs: object) -> MagicMock:
+        """Перехватывает аргументы создания движка"""
+        captured.update(kwargs)
+        return MagicMock()
+
+    monkeypatch.setattr("app.db.session.create_async_engine", fake_create_async_engine)
+    create_engine(Settings(_env_file=None))
+    assert captured["connect_args"]["statement_cache_size"] == 0
 
 
 def test_create_session_factory_returns_maker() -> None:

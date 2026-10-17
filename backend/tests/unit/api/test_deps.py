@@ -8,6 +8,7 @@ from app.api.deps import (
     get_document_repository,
     get_document_service,
     get_es_client,
+    get_redis,
     get_search_repository,
     get_search_service,
     get_session,
@@ -25,6 +26,20 @@ def test_get_es_client_returns_from_state() -> None:
     request = MagicMock()
     request.app.state.es_client = MagicMock(spec=AsyncElasticsearch)
     assert get_es_client(request) is request.app.state.es_client
+
+
+def test_get_redis_returns_none_when_missing() -> None:
+    """Проверяет что при отсутствии Redis возвращается None"""
+    request = MagicMock()
+    request.app.state = MagicMock(spec=[])
+    assert get_redis(request) is None
+
+
+def test_get_redis_returns_from_state() -> None:
+    """Проверяет что Redis берётся из app.state"""
+    request = MagicMock()
+    request.app.state.redis = MagicMock()
+    assert get_redis(request) is request.app.state.redis
 
 
 def test_get_session_factory_returns_from_state() -> None:

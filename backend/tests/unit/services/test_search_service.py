@@ -16,7 +16,12 @@ def _settings() -> Settings:
 
 def _doc(doc_id: int) -> Document:
     """Создаёт тестовый документ"""
-    return Document(id=doc_id, rubrics=[], text=f"doc-{doc_id}", created_date=datetime.now(timezone.utc))
+    return Document(
+        id=doc_id,
+        rubrics=[],
+        text=f"doc-{doc_id}",
+        created_date=datetime.now(timezone.utc),
+    )
 
 
 def _service(
@@ -74,7 +79,8 @@ async def test_search_respects_result_limit() -> None:
 async def test_search_returns_fewer_when_pg_missing() -> None:
     """Проверяет что при рассинхроне возвращаются только найденные в PG"""
     service, _, _ = _service([1, 2, 3], [_doc(1)])
-    assert await service.search("q") == [_doc(1)]
+    result = await service.search("q")
+    assert [d.id for d in result] == [1]
 
 
 async def test_search_propagates_es_error() -> None:
