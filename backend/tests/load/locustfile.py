@@ -6,7 +6,7 @@ from locust import FastHttpUser, between, task
 
 
 BASE_URL = os.environ.get("LOAD_BASE_URL", "http://localhost:8000")
-TOTAL_DOCUMENTS = int(os.environ.get("LOAD_TOTAL_DOCUMENTS", "1500"))
+TOTAL_DOCUMENTS = int(os.environ.get("LOAD_TOTAL_DOCUMENTS", "500"))
 
 HIT_QUERIES = [
     "информации",
