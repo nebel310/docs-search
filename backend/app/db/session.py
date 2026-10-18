@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.core.config import Settings
 
 
-POOL_SIZE = 10
+POOL_SIZE = 5
 MAX_OVERFLOW = 20
 
 
