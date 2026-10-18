@@ -1,19 +1,19 @@
-.PHONY: up down logs migrate init-es import test test-unit test-integration test-e2e load docs venv install
+.PHONY: up down down-v reset rebuild migrate init-es import seed \
+        test-unit test-integration test-e2e test load clean-cache
 
 up:
 	docker compose up -d --build
 
 down:
+	docker compose down
+
+down-v:
 	docker compose down -v
 
-logs:
-	docker compose logs -f api
+reset: down-v up
 
-venv:
-	cd backend && uv venv
-
-install:
-	cd backend && uv sync
+rebuild:
+	docker compose up -d --force-recreate --build api
 
 migrate:
 	docker compose run --rm api alembic upgrade head
@@ -24,19 +24,23 @@ init-es:
 import:
 	docker compose --profile cli run --rm import
 
-test: test-unit test-integration test-e2e
+seed: migrate init-es import
 
 test-unit:
-	cd backend && uv run pytest tests/unit -q
+	cd backend && uv run pytest tests/unit -v
 
 test-integration:
-	cd backend && uv run pytest tests/integration -q
+	cd backend && uv run pytest tests/integration -v --no-cov
 
 test-e2e:
-	cd backend && uv run pytest tests/e2e -q
+	cd backend && uv run pytest tests/e2e -v --no-cov
+
+test: test-unit test-integration test-e2e
 
 load:
-	cd backend && uv run locust -f tests/load/locustfile.py --host http://localhost:8000
+	cd backend && uv run locust -f tests/load/locustfile.py --headless --users 500 --spawn-rate 50 --run-time 3m --host http://localhost:8000 --csv=load_results --html=load_report.html
 
-docs:
-	cd backend && uv run python -m app.cli.dump_openapi
+clean-cache:
+	find . -type d -name "__pycache__" -not -path "*/.venv/*" -exec rm -rf {} +
+	find . -type d -name ".pytest_cache" -exec rm -rf {} +
+	find . -type f -name "*.pyc" -not -path "*/.venv/*" -delete
